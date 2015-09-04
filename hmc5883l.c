@@ -52,31 +52,36 @@ void __i2c_transaction(int cnt, ...) {
   }
 }
 
-void i2c_write_byte(int cnt, ...) {
+struct i2c_msg i2c_wrt_msg(int len, char* buffer) {
   struct i2c_msg msg;
   msg.flags = 0;
   msg.addr = magn_addr;
-  msg.len = cnt;
-  uint8_t* buffer = (uint8_t*) malloc(cnt*sizeof(uint8_t));
-  va_list arg_list;
-  va_start(arg_list, cnt);
-  for (int i = 0; i < cnt; ++i) {
-    buffer[i] = va_arg(arg_list, int);
-  }
-  va_end(arg_list);
+  msg.len = len;
   msg.buf = buffer;
 
 #ifdef DEBUG
   unsigned int data, d; data = 0;
-  for (int i = 0; i < cnt; ++i) {
+  for (int i = 0; i < len; ++i) {
     d = msg.buf[i];
     printf("buffer seg: %d: %x\n", i, d);
-    data += d << (2*(cnt-1-i)*4);
+    data += d << (2*(len-1-i)*4);
   }
   printf("msg buffer: %x\n", data);
 #endif
 
-  __i2c_transaction(1, msg);
+  return msg;
+}
+
+void i2c_write_byte(int cnt, ...) {
+  char* buffer = (char*) malloc(cnt*sizeof(char));
+  va_list arg_list;
+  va_start(arg_list, cnt);
+  for (int i = 0; i < cnt; ++i) {
+    buffer[i] = (char)va_arg(arg_list, int);
+  }
+  va_end(arg_list);
+  struct i2c_msg wrt_msg = i2c_wrt_msg(cnt, buffer);
+  __i2c_transaction(1, wrt_msg);
   free(buffer);
 }
 
