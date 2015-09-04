@@ -33,7 +33,7 @@ static int i2c_fd;
 static int i2cbus_port;
 static uint16_t magn_addr;
 
-void __i2c_transaction(short cnt, ...) {
+void __i2c_transaction(int cnt, ...) {
   struct i2c_rdwr_ioctl_data i2c_data;
   struct i2c_msg* msgs = (struct i2c_msg*)malloc(cnt * sizeof(struct i2c_msg));
 
@@ -52,7 +52,7 @@ void __i2c_transaction(short cnt, ...) {
   }
 }
 
-void i2c_write_byte(short cnt, ...) {
+void i2c_write_byte(int cnt, ...) {
   struct i2c_msg msg;
   msg.flags = 0;
   msg.addr = magn_addr;
@@ -60,7 +60,7 @@ void i2c_write_byte(short cnt, ...) {
   uint8_t* buffer = (uint8_t*) malloc(cnt*sizeof(uint8_t));
   va_list arg_list;
   va_start(arg_list, cnt);
-  for (short i = 0; i < cnt; ++i) {
+  for (int i = 0; i < cnt; ++i) {
     buffer[i] = va_arg(arg_list, int);
   }
   va_end(arg_list);
@@ -68,7 +68,7 @@ void i2c_write_byte(short cnt, ...) {
 
 #ifdef DEBUG
   unsigned int data, d; data = 0;
-  for (short i = 0; i < cnt; ++i) {
+  for (int i = 0; i < cnt; ++i) {
     d = msg.buf[i];
     printf("buffer seg: %d: %x\n", i, d);
     data += d << (2*(cnt-1-i)*4);
@@ -80,11 +80,11 @@ void i2c_write_byte(short cnt, ...) {
   free(buffer);
 }
 
-void set_option(int reg, short cnt, ...) {
+void set_option(int reg, int cnt, ...) {
   int options; options=0x00;
   va_list opt_list;
   va_start(opt_list, cnt);
-  for (short i = 0; i < cnt; ++i) {
+  for (int i = 0; i < cnt; ++i) {
     options |= va_arg(opt_list, int);
   }
   va_end(opt_list);
