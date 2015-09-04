@@ -52,9 +52,9 @@ void __i2c_transaction(int cnt, ...) {
   }
 }
 
-struct i2c_msg i2c_wrt_msg(int len, char* buffer) {
+struct i2c_msg __new_i2c_msg(unsigned short flags, int len, char* buffer) {
   struct i2c_msg msg;
-  msg.flags = 0;
+  msg.flags = flags;
   msg.addr = magn_addr;
   msg.len = len;
   msg.buf = buffer;
@@ -69,6 +69,16 @@ struct i2c_msg i2c_wrt_msg(int len, char* buffer) {
   printf("msg buffer: %x\n", data);
 #endif
 
+  return msg;
+}
+
+struct i2c_msg i2c_rd_msg(int buf_len, char* buffer) {
+  struct i2c_msg msg = __new_i2c_msg(I2C_M_RD, buf_len, buffer);
+  return msg;
+}
+
+struct i2c_msg i2c_wrt_msg(int buf_len, char* buffer) {
+  struct i2c_msg msg = __new_i2c_msg(0, buf_len, buffer);
   return msg;
 }
 
@@ -104,6 +114,22 @@ void set_scale() {
   set_option(ConfigurationRegisterB, 1, scale_reg);
 }
 
+void set_continuous_mode() {
+  set_option(ModeRegister, 1, MeasurementContinuous);
+}
+
+void getAxes() {
+  char reg = (char)AxisXDataRegisterMSB;
+  struct i2c_msg  wrt_msg = i2c_wrt_msg(1, &reg);
+  char read[6] = {0};
+  struct i2c_msg rd_msg = i2c_rd_msg(6, read);
+  __i2c_transaction(2, wrt_msg, rd_msg);
+  for (int i = 0; i < 6; ++i) {
+    printf("read %d: %d; ", i, read[i]);
+  }
+  printf("\n");
+}
+
 int main(int argc, char *argv[]) {
   if (argc < 2) {
     fprintf(stderr, "Usage:  %s <i2c-bus> <i2c-address>\n", argv[0]);
@@ -125,6 +151,8 @@ int main(int argc, char *argv[]) {
     exit(1);
   }
   set_scale();
+  set_continuous_mode();
+  getAxes();
 
   return 0;
 }
