@@ -27,16 +27,25 @@
 #define MeasurementSingleShot 0x01
 #define MeasurementIdle = 0x03
 
-static uint8_t scale_reg;
+static int scale_reg;
 static float scale;
 static int i2c_fd;
 static int i2cbus_port;
 static uint16_t magn_addr;
 
-void __i2c_transaction(struct i2c_msg msg) {
+void __i2c_transaction(short cnt, ...) {
   struct i2c_rdwr_ioctl_data i2c_data;
-  i2c_data.msgs = &msg;
-  i2c_data.nmsgs = 1;
+  struct i2c_msg* msgs = (struct i2c_msg*)malloc(cnt * sizeof(struct i2c_msg));
+
+  va_list arg_list;
+  va_start(arg_list, cnt);
+  for (int i = 0; i < cnt; ++i) {
+    msgs[i] = va_arg(arg_list, struct i2c_msg);
+  }
+  va_end(arg_list);
+
+  i2c_data.msgs = msgs;
+  i2c_data.nmsgs = cnt;
   printf("i2c_data's msg address: %x\n", i2c_data.msgs->addr);
   if (ioctl(i2c_fd, I2C_RDWR, &i2c_data) < 0) {
     fprintf(stderr, "transaction fail(ioctl), %s\n", strerror(errno));
@@ -67,12 +76,12 @@ void i2c_write_byte(short cnt, ...) {
   printf("msg buffer: %x\n", data);
 #endif
 
-  __i2c_transaction(msg);
+  __i2c_transaction(1, msg);
   free(buffer);
 }
 
-void set_option(uint8_t reg, short cnt, ...) {
-  uint8_t options; options=0x00;
+void set_option(int reg, short cnt, ...) {
+  int options; options=0x00;
   va_list opt_list;
   va_start(opt_list, cnt);
   for (short i = 0; i < cnt; ++i) {
