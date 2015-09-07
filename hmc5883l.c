@@ -7,7 +7,7 @@
 #include <linux/i2c-dev.h>
 #include <errno.h>
 
-#define DEBUG
+//#define DEBUG
 
 #define ConfigurationRegisterA 0x00
 #define ConfigurationRegisterB 0x01
@@ -32,6 +32,13 @@ static float scale;
 static int i2c_fd;
 static int i2cbus_port;
 static uint16_t magn_addr;
+
+int twoComplCalc(int val, int len) {
+  if(val & (1 << len - 1)) {
+    val = val - (1<<len);
+  }
+  return val;
+}
 
 void __i2c_transaction(int cnt, ...) {
   struct i2c_rdwr_ioctl_data i2c_data;
@@ -108,8 +115,7 @@ void set_option(int reg, int cnt, ...) {
 
 void set_scale() {
   //temporary setup
-  scale_reg = 0xa0;
-  scale = 0.92;
+  scale_reg = 1 << 5;
   //scale_reg = scale_reg << 5;
   set_option(ConfigurationRegisterB, 1, scale_reg);
 }
@@ -124,10 +130,22 @@ void getAxes() {
   char read[6] = {0};
   struct i2c_msg rd_msg = i2c_rd_msg(6, read);
   __i2c_transaction(2, wrt_msg, rd_msg);
+#ifdef DEBUG
   for (int i = 0; i < 6; ++i) {
     printf("read %d: %d; ", i, read[i]);
   }
   printf("\n");
+#endif
+  int read_x = read[1];
+  read_x |= (read[0] << 8);
+  read_x = twoComplCalc(read_x, 16);
+  int read_y = read[3];
+  read_y |= (read[2]  << 8);
+  read_y = twoComplCalc(read_y, 16);
+  int read_z = read[5];
+  read_z |= (read[4] << 8);
+  read_z = twoComplCalc(read_z, 16);
+  printf("getAxes: x=%d, y=%d, z=%d\n", read_x, read_y, read_z);
 }
 
 int main(int argc, char *argv[]) {
@@ -152,6 +170,7 @@ int main(int argc, char *argv[]) {
   }
   set_scale();
   set_continuous_mode();
+  usleep(6000);
   getAxes();
 
   return 0;
