@@ -146,12 +146,12 @@ void __get_axes(magn_sensor_data_t* data) {
   int read_x = read[1];
   read_x |= (read[0] << 8);
   read_x = two_compl_calc(read_x, 16);
-  int read_y = read[3];
-  read_y |= (read[2]  << 8);
-  read_y = two_compl_calc(read_y, 16);
-  int read_z = read[5];
-  read_z |= (read[4] << 8);
+  int read_z = read[3];
+  read_z |= (read[2]  << 8);
   read_z = two_compl_calc(read_z, 16);
+  int read_y = read[5];
+  read_y |= (read[4] << 8);
+  read_y = two_compl_calc(read_y, 16);
   printf("get_axes: x=%d, y=%d, z=%d\n", read_x, read_y, read_z);
   data->magn_x = read_x;
   data->magn_y = read_y;
@@ -164,7 +164,7 @@ void get_heading(magn_sensor_data_t* data) {
    * heading = arctan(y/x)
    */
   __get_axes(data);
-  double rad = atan2(data->magn_x, data->magn_y);
+  double rad = atan2(data->magn_y, data->magn_x);
   if (rad < 0.0) {
     rad += 2 * M_PI;
   }
