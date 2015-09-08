@@ -6,7 +6,7 @@
 #include <stdint.h>
 #include <linux/i2c-dev.h>
 #include <errno.h>
-
+#include <math.h>
 //#define DEBUG
 
 #define ConfigurationRegisterA 0x00
@@ -33,14 +33,21 @@ static int i2c_fd;
 static int i2cbus_port;
 static uint16_t magn_addr;
 
-int twoComplCalc(int val, int len) {
+typedef struct magn_sensor_data {
+  int magn_x;
+  int magn_y;
+  int magn_z;
+  float heading;
+} magn_sensor_data_t;
+
+int two_compl_calc(int val, int len) {
   if(val & (1 << len - 1)) {
     val = val - (1<<len);
   }
   return val;
 }
 
-void __i2c_transaction(int cnt, ...) {
+void i2c_transaction(int cnt, ...) {
   struct i2c_rdwr_ioctl_data i2c_data;
   struct i2c_msg* msgs = (struct i2c_msg*)malloc(cnt * sizeof(struct i2c_msg));
 
@@ -89,7 +96,7 @@ struct i2c_msg i2c_wrt_msg(int buf_len, char* buffer) {
   return msg;
 }
 
-void i2c_write_byte(int cnt, ...) {
+void i2c_write_one_msg(int cnt, ...) {
   char* buffer = (char*) malloc(cnt*sizeof(char));
   va_list arg_list;
   va_start(arg_list, cnt);
@@ -98,7 +105,7 @@ void i2c_write_byte(int cnt, ...) {
   }
   va_end(arg_list);
   struct i2c_msg wrt_msg = i2c_wrt_msg(cnt, buffer);
-  __i2c_transaction(1, wrt_msg);
+  i2c_transaction(1, wrt_msg);
   free(buffer);
 }
 
@@ -110,7 +117,7 @@ void set_option(int reg, int cnt, ...) {
     options |= va_arg(opt_list, int);
   }
   va_end(opt_list);
-  i2c_write_byte(2, reg, options);
+  i2c_write_one_msg(2, reg, options);
 }
 
 void set_scale() {
@@ -124,12 +131,12 @@ void set_continuous_mode() {
   set_option(ModeRegister, 1, MeasurementContinuous);
 }
 
-void getAxes() {
+void __get_axes(magn_sensor_data_t* data) {
   char reg = (char)AxisXDataRegisterMSB;
   struct i2c_msg  wrt_msg = i2c_wrt_msg(1, &reg);
   char read[6] = {0};
   struct i2c_msg rd_msg = i2c_rd_msg(6, read);
-  __i2c_transaction(2, wrt_msg, rd_msg);
+  i2c_transaction(2, wrt_msg, rd_msg);
 #ifdef DEBUG
   for (int i = 0; i < 6; ++i) {
     printf("read %d: %d; ", i, read[i]);
@@ -138,14 +145,31 @@ void getAxes() {
 #endif
   int read_x = read[1];
   read_x |= (read[0] << 8);
-  read_x = twoComplCalc(read_x, 16);
+  read_x = two_compl_calc(read_x, 16);
   int read_y = read[3];
   read_y |= (read[2]  << 8);
-  read_y = twoComplCalc(read_y, 16);
+  read_y = two_compl_calc(read_y, 16);
   int read_z = read[5];
   read_z |= (read[4] << 8);
-  read_z = twoComplCalc(read_z, 16);
-  printf("getAxes: x=%d, y=%d, z=%d\n", read_x, read_y, read_z);
+  read_z = two_compl_calc(read_z, 16);
+  printf("get_axes: x=%d, y=%d, z=%d\n", read_x, read_y, read_z);
+  data->magn_x = read_x;
+  data->magn_y = read_y;
+  data->magn_z = read_z;
+}
+
+void get_heading(magn_sensor_data_t* data) {
+  /* [important note]
+   * since no 3-axis accelerometer data, heading angle is simplfied as
+   * heading = arctan(y/x)
+   */
+  __get_axes(data);
+  double rad = atan2(data->magn_x, data->magn_y);
+  if (rad < 0.0) {
+    rad += 2 * M_PI;
+  }
+  data->heading = (float)(rad * 180.0 / M_PI);
+  printf("get_heading: heading=%f\n", data->heading);
 }
 
 int main(int argc, char *argv[]) {
@@ -171,7 +195,8 @@ int main(int argc, char *argv[]) {
   set_scale();
   set_continuous_mode();
   usleep(6000);
-  getAxes();
+  magn_sensor_data_t sensor_data = {0};
+  get_heading(&sensor_data);
 
   return 0;
 }
